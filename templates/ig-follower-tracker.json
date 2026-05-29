@@ -1,0 +1,94 @@
+{
+  "name": "Instagram Follower Tracker",
+  "nodes": [
+    {
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567891",
+      "name": "Daily Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "parameters": {
+        "rule": {
+          "interval": 86400
+        }
+      }
+    },
+    {
+      "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+      "name": "Fetch Instagram Followers",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [450, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.IG_API_BASE_URL }}/v1/users/{{ $env.IG_USER_ID }}/followers",
+        "authentication": "genericCredentialType",
+        "sendQuery": true,
+        "sendHeaders": true,
+        "sendBody": false,
+        "options": {}
+      }
+    },
+    {
+      "id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+      "name": "Diff Follower Count",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [650, 300],
+      "parameters": {
+        "jsCode": "const prev = $getWorkflowStaticData('global').followers || 0;\nconst curr = $input.first().json.followers_count;\nconst diff = curr - prev;\nconst pct = prev > 0 ? ((diff / prev) * 100).toFixed(2) : 0;\n$getWorkflowStaticData('global').followers = curr;\nreturn [{ json: { prev, curr, diff, pct: Number(pct), date: new Date().toISOString().split('T')[0] } }];"
+      }
+    },
+    {
+      "id": "d4e5f6a7-b8c9-0123-defa-234567890123",
+      "name": "Format Report",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [850, 300],
+      "parameters": {
+        "values": {
+          "string": [
+            { "name": "to", "value": "social@company.com" },
+            { "name": "subject", "value": "={{ 'Daily IG Report - ' + $json.date }}" },
+            { "name": "body", "value": "={{ 'Previous: ' + $json.prev + '\\nCurrent: ' + $json.curr + '\\nChange: ' + $json.diff + ' (' + $json.pct + '%)' }}" }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "e5f6a7b8-c9d0-1234-efab-345678901234",
+      "name": "Send Email Report",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [1050, 300],
+      "parameters": {
+        "fromEmail": "reports@company.com",
+        "toEmail": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "text": "={{ $json.body }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Daily Schedule": {
+      "main": [[{ "node": "Fetch Instagram Followers", "type": "main", "index": 0 }]]
+    },
+    "Fetch Instagram Followers": {
+      "main": [[{ "node": "Diff Follower Count", "type": "main", "index": 0 }]]
+    },
+    "Diff Follower Count": {
+      "main": [[{ "node": "Format Report", "type": "main", "index": 0 }]]
+    },
+    "Format Report": {
+      "main": [[{ "node": "Send Email Report", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {},
+  "settings": {},
+  "staticData": null,
+  "versionId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "triggerCount": 0,
+  "tags": []
+}

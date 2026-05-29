@@ -1,0 +1,127 @@
+﻿{
+  "name": "WhatsApp Broadcast Campaign",
+  "nodes": [
+    {
+      "id": "node-2f3a-4b5c-6d7e-8f9a",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "parameters": {}
+    },
+    {
+      "id": "node-3a4b-5c6d-7e8f-9a0b",
+      "name": "Read Contacts from Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [450, 300],
+      "parameters": {
+        "operation": "get",
+        "documentId": "{{ $credentials.contactsSheetId }}",
+        "sheetName": "Contacts",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": [
+            { "name": "name", "column": "A" },
+            { "name": "phone", "column": "B" },
+            { "name": "optedIn", "column": "C" }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "node-4b5c-6d7e-8f9a-0b1c",
+      "name": "Format Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 300],
+      "parameters": {
+        "language": "javascript",
+        "code": "const contacts = $input.all();\nconst campaignMessage = $credentials.campaignText || 'Hello {{name}}! Check out our latest offers at https://example.com/sale';\nreturn contacts.map(c => ({\n  json: {\n    name: c.json.name,\n    phone: c.json.phone,\n    message: campaignMessage.replace('{{name}}', c.json.name),\n    optedIn: c.json.optedIn === 'true' || c.json.optedIn === true\n  }\n}));\n",
+        "singleOutput": true
+      }
+    },
+    {
+      "id": "node-5c6d-7e8f-9a0b-1c2d",
+      "name": "Split Into Batches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 2,
+      "position": [850, 300],
+      "parameters": {
+        "batchSize": 10,
+        "options": {}
+      }
+    },
+    {
+      "id": "node-6d7e-8f9a-0b1c-2d3e",
+      "name": "Send WhatsApp Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1050, 300],
+      "parameters": {
+        "url": "https://graph.facebook.com/v18.0/{{ $credentials.wabaPhoneNumberId }}/messages",
+        "options": {},
+        "method": "POST",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "messaging_product", "value": "whatsapp" },
+            { "name": "to", "value": "={{ $json.phone }}" },
+            { "name": "type", "value": "template" },
+            { "name": "template[name]", "value": "marketing_campaign" },
+            { "name": "template[language][code]", "value": "en_US" },
+            { "name": "template[components][0][type]", "value": "body" },
+            { "name": "template[components][0][parameters][0][type]", "value": "text" },
+            { "name": "template[components][0][parameters][0][text]", "value": "={{ $json.name }}" }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "node-7e8f-9a0b-1c2d-3e4f",
+      "name": "Rate Limit Wait",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [1250, 300],
+      "parameters": {
+        "resume": "duration",
+        "amount": 3,
+        "unit": "seconds"
+      }
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [[{ "node": "Read Contacts from Sheet", "type": "main", "index": 0 }]]
+    },
+    "Read Contacts from Sheet": {
+      "main": [[{ "node": "Format Message", "type": "main", "index": 0 }]]
+    },
+    "Format Message": {
+      "main": [[{ "node": "Split Into Batches", "type": "main", "index": 0 }]]
+    },
+    "Split Into Batches": {
+      "main": [[{ "node": "Send WhatsApp Message", "type": "main", "index": 0 }]]
+    },
+    "Send WhatsApp Message": {
+      "main": [[{ "node": "Rate Limit Wait", "type": "main", "index": 0 }]]
+    },
+    "Rate Limit Wait": {
+      "main": [[{ "node": "Split Into Batches", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "versionId": "v1-wabroadcast-3d6f-9a2c-7e1b",
+  "triggerCount": 0,
+  "tags": ["whatsapp", "broadcast", "marketing", "crm"]
+}

@@ -1,0 +1,96 @@
+{
+  "name": "Email to Slack Alert",
+  "nodes": [
+    {
+      "id": "d4e5f6a7-b8c9-0123-defa-234567890123",
+      "name": "Watch Inbox",
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "parameters": {
+        "criteria": "UNSEEN",
+        "options": {
+          "folder": "INBOX",
+          "markSeen": false,
+          "maxMessages": 10,
+          "format": "raw",
+          "sslVersion": "tls",
+          "useSSL": true,
+          "keepAlive": true
+        }
+      }
+    },
+    {
+      "id": "e5f6a7b8-c9d0-1234-efab-345678901234",
+      "name": "Is Important?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [450, 300],
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.from }}",
+              "operation": "contains",
+              "value2": "@ceo.com"
+            },
+            {
+              "value1": "={{ $json.from }}",
+              "operation": "contains",
+              "value2": "@executive-board.com"
+            },
+            {
+              "value1": "={{ $json.subject }}",
+              "operation": "contains",
+              "value2": "URGENT"
+            },
+            {
+              "value1": "={{ $json.subject }}",
+              "operation": "contains",
+              "value2": "ACTION REQUIRED"
+            },
+            {
+              "value1": "={{ $json.subject }}",
+              "operation": "contains",
+              "value2": "CRITICAL"
+            }
+          ]
+        },
+        "combinator": "or"
+      }
+    },
+    {
+      "id": "f6a7b8c9-d0e1-2345-fabc-456789012345",
+      "name": "Notify Slack",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 1,
+      "position": [650, 200],
+      "parameters": {
+        "channel": "#alerts",
+        "text": "={{ ':warning: *Important Email Received*\\nFrom: ' + $json.from + '\\nSubject: ' + $json.subject + '\\nPreview: ' + ($json.textPlain || '').substring(0, 300) }}",
+        "otherOptions": {
+          "as_user": false,
+          "username": "Email Alert Bot",
+          "icon_emoji": ":envelope:"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Watch Inbox": {
+      "main": [[{ "node": "Is Important?", "type": "main", "index": 0 }]]
+    },
+    "Is Important?": {
+      "main": [
+        [{ "node": "Notify Slack", "type": "main", "index": 0 }],
+        []
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {},
+  "staticData": null,
+  "versionId": "d4e5f6a7-b8c9-0123-defa-234567890123",
+  "triggerCount": 0,
+  "tags": []
+}

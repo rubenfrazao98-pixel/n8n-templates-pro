@@ -1,0 +1,151 @@
+﻿{
+  "name": "AI Image Generator from RSS",
+  "nodes": [
+    {
+      "id": "node-6b7c-8d9e-0f1a-2b3c",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "hours", "minutesInterval": 360 }]
+        }
+      }
+    },
+    {
+      "id": "node-7c8d-9e0f-1a2b-3c4d",
+      "name": "Fetch RSS Feed",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [450, 300],
+      "parameters": {
+        "url": "https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRFZxYUdjU0FtVnVHZ0pWVXlnQVAB",
+        "options": {}
+      }
+    },
+    {
+      "id": "node-8d9e-0f1a-2b3c-4d5e",
+      "name": "Extract Headlines",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 300],
+      "parameters": {
+        "language": "javascript",
+        "code": "const items = $input.all();\nreturn items.slice(0, 3).map(item => ({\n  json: {\n    title: item.json.title,\n    description: (item.json.description || '').replace(/<[^>]*>/g, '').substring(0, 200),\n    link: item.json.link,\n    source: 'Google News'\n  }\n}));\n",
+        "singleOutput": true
+      }
+    },
+    {
+      "id": "node-9e0f-1a2b-3c4d-5e6f",
+      "name": "Generate Image Prompt",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [850, 300],
+      "parameters": {
+        "model": "gpt-4",
+        "temperature": 0.8,
+        "maxTokens": 256,
+        "prompt": "Create a detailed image generation prompt for DALL-E based on this news headline. The prompt should describe a photorealistic scene in 1-2 sentences.\n\nHeadline: {{ $json.title }}\n\nDescription: {{ $json.description }}\n\nOutput only the image prompt, nothing else.",
+        "options": {}
+      }
+    },
+    {
+      "id": "node-0f1a-2b3c-4d5e-6f7a",
+      "name": "Generate Image via API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1050, 300],
+      "parameters": {
+        "url": "https://api.openai.com/v1/images/generations",
+        "options": {},
+        "method": "POST",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "prompt", "value": "={{ $json.text }}" },
+            { "name": "n", "value": 1 },
+            { "name": "size", "value": "1024x1024" },
+            { "name": "model", "value": "dall-e-3" },
+            { "name": "quality", "value": "standard" }
+          ]
+        },
+        "options": {
+          "timeout": 60000
+        }
+      }
+    },
+    {
+      "id": "node-1a2b-3c4d-5e6f-7a8b",
+      "name": "Format Post",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [1250, 300],
+      "parameters": {
+        "values": {
+          "string": [
+            { "name": "headline", "value": "={{ $json.title }}" },
+            { "name": "imageUrl", "value": "={{ $json.data[0].url }}" },
+            { "name": "caption", "value": "={{ 'Breaking: ' + $json.title.substring(0, 200) + '\n\nGenerated with AI' }}" },
+            { "name": "sourceLink", "value": "={{ $json.link }}" }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "node-2b3c-4d5e-6f7a-8b9c",
+      "name": "Publish to Social",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1450, 300],
+      "parameters": {
+        "url": "https://graph.facebook.com/v18.0/{{ $credentials.pageId }}/photos",
+        "options": {},
+        "method": "POST",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "url", "value": "={{ $json.imageUrl }}" },
+            { "name": "caption", "value": "={{ $json.caption }}" }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [[{ "node": "Fetch RSS Feed", "type": "main", "index": 0 }]]
+    },
+    "Fetch RSS Feed": {
+      "main": [[{ "node": "Extract Headlines", "type": "main", "index": 0 }]]
+    },
+    "Extract Headlines": {
+      "main": [[{ "node": "Generate Image Prompt", "type": "main", "index": 0 }]]
+    },
+    "Generate Image Prompt": {
+      "main": [[{ "node": "Generate Image via API", "type": "main", "index": 0 }]]
+    },
+    "Generate Image via API": {
+      "main": [[{ "node": "Format Post", "type": "main", "index": 0 }]]
+    },
+    "Format Post": {
+      "main": [[{ "node": "Publish to Social", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "versionId": "v1-aisocial-9e4b-2f7c-1d3a",
+  "triggerCount": 1,
+  "tags": ["ai", "social-media", "automation", "image-generation"]
+}

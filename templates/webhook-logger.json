@@ -1,0 +1,85 @@
+{
+  "name": "Webhook Data Logger",
+  "nodes": [
+    {
+      "id": "a7b8c9d0-e1f2-3456-abcd-567890123456",
+      "name": "Incoming Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "data-ingest",
+        "options": {}
+      },
+      "webhookId": "data-ingest"
+    },
+    {
+      "id": "b8c9d0e1-f2a3-4567-bcde-678901234567",
+      "name": "Validate Payload",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [450, 300],
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.api_key }}",
+              "operation": "equal",
+              "value2": "={{ $env.WEBHOOK_SECRET }}"
+            },
+            {
+              "value1": "={{ $json.event }}",
+              "operation": "isNotEmpty",
+              "value2": ""
+            }
+          ]
+        },
+        "combinator": "and"
+      }
+    },
+    {
+      "id": "c9d0e1f2-a3b4-5678-cdef-789012345678",
+      "name": "Transform Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [650, 200],
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst { api_key, ...clean } = input;\nreturn [{\n  json: {\n    ...clean,\n    received_at: new Date().toISOString(),\n    source_ip: $execution?.context?.webhook?.headers?.['x-forwarded-for'] || 'unknown',\n    enriched: true\n  }\n}];"
+      }
+    },
+    {
+      "id": "d0e1f2a3-b4c5-6789-defa-890123456789",
+      "name": "Append to Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 1,
+      "position": [850, 200],
+      "parameters": {
+        "operation": "append",
+        "documentId": "={{ $env.SHEET_ID }}",
+        "sheetName": "WebhookData",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Incoming Webhook": {
+      "main": [[{ "node": "Validate Payload", "type": "main", "index": 0 }]]
+    },
+    "Validate Payload": {
+      "main": [
+        [{ "node": "Transform Data", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Transform Data": {
+      "main": [[{ "node": "Append to Sheet", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {},
+  "settings": {},
+  "staticData": null,
+  "versionId": "a7b8c9d0-e1f2-3456-abcd-567890123456",
+  "triggerCount": 0,
+  "tags": []
+}

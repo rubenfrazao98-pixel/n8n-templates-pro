@@ -1,0 +1,243 @@
+﻿{
+  "name": "WhatsApp Lead Capture & CRM",
+  "nodes": [
+    {
+      "id": "b1c2d3e4-f5a6-7890-bcde-f12345678901",
+      "name": "WhatsApp Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "parameters": {
+        "path": "whatsapp-lead-inbound",
+        "httpMethod": "POST",
+        "responseMode": "onReceived",
+        "responseData": "allEntries",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "webhookId": "wa-lead-hook-002"
+    },
+    {
+      "id": "b1c2d3e4-f5a6-7890-bcde-f12345678902",
+      "name": "Extract Lead Info",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [450, 300],
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "leadName",
+              "value": "={{ $json.contacts[0].profile.name || $json.profileName || 'Unknown' }}"
+            },
+            {
+              "name": "leadPhone",
+              "value": "={{ $json.contacts[0].wa_id || $json.from }}"
+            },
+            {
+              "name": "leadMessage",
+              "value": "={{ $json.messages[0].text.body }}"
+            },
+            {
+              "name": "source",
+              "value": "WhatsApp"
+            },
+            {
+              "name": "receivedAt",
+              "value": "={{ $now.toISOString() }}"
+            },
+            {
+              "name": "status",
+              "value": "new"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "b1c2d3e4-f5a6-7890-bcde-f12345678903",
+      "name": "Check Existing Lead",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 1,
+      "position": [650, 300],
+      "parameters": {
+        "operation": "read",
+        "documentId": "1XyZwVuTsRqPoNmLkJiHgFeDcBa",
+        "sheetName": "Leads",
+        "filters": {
+          "mappingMode": "defineBelow",
+          "combineConditions": "AND",
+          "conditions": [
+            {
+              "fieldName": "phone",
+              "condition": "equal",
+              "fieldValue": "={{ $json.leadPhone }}"
+            }
+          ]
+        },
+        "options": {},
+        "credential": {
+          "id": "gsheets-cred-002",
+          "name": "Google Sheets Account"
+        }
+      }
+    },
+    {
+      "id": "b1c2d3e4-f5a6-7890-bcde-f12345678904",
+      "name": "IF New Lead",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [850, 300],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-002",
+              "leftValue": "={{ $json.data.length }}",
+              "rightValue": "",
+              "operator": {
+                "type": "number",
+                "operation": "equals",
+                "singleValue": true
+              },
+              "rightFixedValue": "0"
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "b1c2d3e4-f5a6-7890-bcde-f12345678905",
+      "name": "Create Lead in HubSpot",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [1050, 200],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/contacts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "properties",
+              "value": "{\n  \"firstname\": \"{{ $json.leadName.split(' ')[0] }}\",\n  \"phone\": \"{{ $json.leadPhone }}\",\n  \"hs_lead_status\": \"NEW\",\n  \"lead_source\": \"WhatsApp\",\n  \"last_message\": \"{{ $json.leadMessage }}\",\n  \"last_contact_date\": \"{{ $now.toISOString() }}\"\n}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        },
+        "credential": {
+          "id": "hubspot-cred-001",
+          "name": "HubSpot API"
+        }
+      }
+    },
+    {
+      "id": "b1c2d3e4-f5a6-7890-bcde-f12345678906",
+      "name": "Send Confirmation WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [1050, 400],
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v18.0/WHATSAPP_PHONE_NUMBER_ID/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "messaging_product",
+              "value": "whatsapp"
+            },
+            {
+              "name": "to",
+              "value": "={{ $json.leadPhone }}"
+            },
+            {
+              "name": "type",
+              "value": "template"
+            },
+            {
+              "name": "template",
+              "value": "{\n  \"name\": \"lead_received\",\n  \"language\": {\n    \"code\": \"en\"\n  },\n  \"components\": [\n    {\n      \"type\": \"body\",\n      \"parameters\": [\n        {\n          \"type\": \"text\",\n          \"text\": \"{{ $json.leadName.split(' ')[0] }}\"\n        }\n      ]\n    }\n  ]\n}"
+            }
+          ]
+        },
+        "options": {},
+        "credential": {
+          "id": "whatsapp-cred-001",
+          "name": "WhatsApp Business API"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "WhatsApp Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract Lead Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Lead Info": {
+      "main": [
+        [
+          {
+            "node": "Check Existing Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Existing Lead": {
+      "main": [
+        [
+          {
+            "node": "IF New Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF New Lead": {
+      "main": [
+        [
+          {
+            "node": "Create Lead in HubSpot",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send Confirmation WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {},
+  "staticData": null,
+  "tags": ["whatsapp", "crm", "lead-capture", "sales"],
+  "versionId": "v1-wa-lead-capture-20260530",
+  "triggerCount": 0
+}

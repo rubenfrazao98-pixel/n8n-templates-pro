@@ -1,0 +1,156 @@
+{
+  "name": "Order Confirmation via WhatsApp",
+  "nodes": [
+    {
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234561011",
+      "name": "Order Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "parameters": {
+        "path": "shopify-order-confirmed",
+        "httpMethod": "POST",
+        "responseMode": "onReceived",
+        "responseData": "allEntries",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "webhookId": "shopify-order-wa"
+    },
+    {
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234561022",
+      "name": "Format WhatsApp Message",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [450, 300],
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "phone",
+              "value": "={{ $json.data.customer.phone || $json.customer.phone }}"
+            },
+            {
+              "name": "message",
+              "value": "={{ '✅ *Order Confirmed!*\n\nHi ' + ($json.data.customer.firstName || $json.customer.firstName || 'there') + ',\n\nYour order #' + ($json.data.orderNumber || $json.orderNumber || $json.id) + ' has been confirmed.\n\n📦 *Items:* ' + JSON.stringify(($json.data.lineItems || $json.lineItems || []).map(function(i) { return i.title || i.name; })) + '\n💰 *Total:* ' + ($json.data.totalPrice || $json.totalPrice || $json.total) + '\n📍 *Shipping:* ' + ($json.data.shippingAddress?.address1 || $json.shippingAddress || 'Standard') + '\n\nWe\'ll send you tracking info once it ships!\n\nThanks for shopping with us ❤️' }}"
+            },
+            {
+              "name": "orderId",
+              "value": "={{ $json.data.orderNumber || $json.orderNumber || $json.id }}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234561033",
+      "name": "Send WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [650, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://graph.facebook.com/v22.0/' + $env.WA_PHONE_ID + '/messages' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "sendBody": true,
+        "sendHeaders": true,
+        "sendQuery": false,
+        "options": {},
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "messaging_product",
+              "value": "whatsapp"
+            },
+            {
+              "name": "to",
+              "value": "={{ $json.phone }}"
+            },
+            {
+              "name": "type",
+              "value": "text"
+            },
+            {
+              "name": "text",
+              "value": "={ \"preview_url\": false, \"body\": \"{{ $json.message }}\" }"
+            }
+          ]
+        },
+        "credential": {
+          "id": "wa-oauth-002",
+          "name": "WhatsApp Business API"
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234561044",
+      "name": "Log to Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 1,
+      "position": [850, 300],
+      "parameters": {
+        "operation": "append",
+        "documentId": "={{ $env.ORDERS_SHEET_ID }}",
+        "sheetName": "WA-Confirmations",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "orderId": "={{ $json.orderId }}",
+            "phone": "={{ $json.phone }}",
+            "status": "sent",
+            "timestamp": "={{ $now.toISOString() }}"
+          }
+        },
+        "options": {},
+        "credential": {
+          "id": "gsheets-cred-005",
+          "name": "Google Sheets Account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Order Webhook": {
+      "main": [
+        [
+          {
+            "node": "Format WhatsApp Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format WhatsApp Message": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Log to Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {},
+  "staticData": null,
+  "tags": ["whatsapp", "ecommerce", "orders", "shopify", "notifications"],
+  "versionId": "v1-order-wa-20260530",
+  "triggerCount": 0
+}

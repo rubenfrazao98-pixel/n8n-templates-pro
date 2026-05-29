@@ -1,0 +1,107 @@
+{
+  "name": "Scheduled Google Backup",
+  "nodes": [
+    {
+      "id": "f4a5b6c7-d8e9-0123-fabc-234567890123",
+      "name": "Nightly Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "parameters": {
+        "rule": {
+          "interval": 86400
+        }
+      }
+    },
+    {
+      "id": "a5b6c7d8-e9f0-1234-abcd-345678901234",
+      "name": "Read Source Data",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 1,
+      "position": [450, 300],
+      "parameters": {
+        "operation": "read",
+        "documentId": "={{ $env.SOURCE_SHEET_ID }}",
+        "sheetName": "MasterData",
+        "options": {}
+      }
+    },
+    {
+      "id": "b6c7d8e9-f0a1-2345-bcde-456789012345",
+      "name": "Compress Backup",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [650, 300],
+      "parameters": {
+        "jsCode": "const rows = $input.all();\nconst payload = {\n  exported_at: new Date().toISOString(),\n  source: $env.SOURCE_SHEET_ID,\n  record_count: rows.length,\n  data: rows.map(r => r.json)\n};\nreturn [{\n  json: {\n    fileName: `backup-${new Date().toISOString().split('T')[0]}.json`,\n    fileContents: JSON.stringify(payload, null, 2),\n    mimeType: 'application/json',\n    recordCount: rows.length\n  }\n}];"
+      }
+    },
+    {
+      "id": "c7d8e9f0-a1b2-3456-cdef-567890123456",
+      "name": "Upload to Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 1,
+      "position": [850, 300],
+      "parameters": {
+        "operation": "upload",
+        "name": "={{ $json.fileName }}",
+        "folder": "={{ $env.BACKUP_FOLDER_ID }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "d8e9f0a1-b2c3-4567-defa-678901234567",
+      "name": "Set Status",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [1050, 300],
+      "parameters": {
+        "values": {
+          "string": [
+            { "name": "to", "value": "ops@company.com" },
+            { "name": "subject", "value": "={{ 'Backup Complete - ' + $json.fileName }}" },
+            { "name": "body", "value": "={{ 'Backup uploaded successfully.\\nFile: ' + $json.fileName + '\\nRecords: ' + $json.recordCount + '\\nDrive URL: ' + $json.alternateLink }}" }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "e9f0a1b2-c3d4-5678-efab-789012345678",
+      "name": "Notify Admin",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [1250, 300],
+      "parameters": {
+        "fromEmail": "backups@company.com",
+        "toEmail": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "text": "={{ $json.body }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Nightly Schedule": {
+      "main": [[{ "node": "Read Source Data", "type": "main", "index": 0 }]]
+    },
+    "Read Source Data": {
+      "main": [[{ "node": "Compress Backup", "type": "main", "index": 0 }]]
+    },
+    "Compress Backup": {
+      "main": [[{ "node": "Upload to Drive", "type": "main", "index": 0 }]]
+    },
+    "Upload to Drive": {
+      "main": [[{ "node": "Set Status", "type": "main", "index": 0 }]]
+    },
+    "Set Status": {
+      "main": [[{ "node": "Notify Admin", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {},
+  "settings": {},
+  "staticData": null,
+  "versionId": "f4a5b6c7-d8e9-0123-fabc-234567890123",
+  "triggerCount": 0,
+  "tags": []
+}

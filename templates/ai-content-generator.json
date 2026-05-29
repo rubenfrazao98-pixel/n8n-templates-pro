@@ -1,0 +1,187 @@
+﻿{
+  "name": "AI Content Generator from RSS",
+  "nodes": [
+    {
+      "id": "c1d2e3f4-a5b6-7890-cdef-123456789012",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "value": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "c1d2e3f4-a5b6-7890-cdef-123456789013",
+      "name": "RSS Feed Read",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [450, 300],
+      "parameters": {
+        "url": "https://example.com/blog/feed.xml"
+      }
+    },
+    {
+      "id": "c1d2e3f4-a5b6-7890-cdef-123456789014",
+      "name": "Fetch Full Article",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [650, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.link }}",
+        "authentication": "none",
+        "sendBody": false,
+        "options": {
+          "timeout": 15000,
+          "followRedirect": true,
+          "redirect": {
+            "maxRedirects": 5
+          }
+        }
+      }
+    },
+    {
+      "id": "c1d2e3f4-a5b6-7890-cdef-123456789015",
+      "name": "Summarize with GPT",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [850, 300],
+      "parameters": {
+        "resource": "chat",
+        "options": {
+          "model": "gpt-4",
+          "temperature": 0.3,
+          "maxTokens": 500
+        },
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are a content curator. Summarize the following article in 2-3 paragraphs. Make it engaging and informative. Output in markdown format."
+            },
+            {
+              "role": "user",
+              "content": "={{ \"Title: \" + $json.title + \"\\n\\nExcerpt: \" + ($json.content || $json.description) }}"
+            }
+          ]
+        },
+        "credential": {
+          "id": "openai-cred-002",
+          "name": "OpenAI API Account"
+        }
+      }
+    },
+    {
+      "id": "c1d2e3f4-a5b6-7890-cdef-123456789016",
+      "name": "Format Blog Post",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [1050, 300],
+      "parameters": {
+        "language": "javascript",
+        "code": "const summary = $json.choices[0].message.content;\nconst original = $input.first().json;\n\nconst formatted = `---\ntitle: \"${original.title}\"\ndate: \"${new Date().toISOString().split('T')[0]}\"\nsource: \"${original.link}\"\ntags: [\"ai-generated\", \"curated\"]\n---\n\n# ${original.title}\n\n> Originally published at: ${original.link}\n\n${summary}\n\n---\n*This post was AI-generated from the original article.*\n`;\n\nreturn [{ formattedContent: formatted, title: original.title, source: original.link }];"
+      }
+    },
+    {
+      "id": "c1d2e3f4-a5b6-7890-cdef-123456789017",
+      "name": "Save to Google Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 1,
+      "position": [1250, 300],
+      "parameters": {
+        "operation": "create",
+        "resource": "file",
+        "name": "={{ $json.title.replace(/[^a-zA-Z0-9 ]/g, '') + '.md' }}",
+        "parents": {
+          "folder": "1AbCdEfGhIjKlMnOpQrStUvWxYz"
+        },
+        "dataPropertyName": "formattedContent",
+        "options": {
+          "appProperties": {
+            "parameter": [
+              {
+                "key": "generated_by",
+                "value": "n8n_ai_workflow"
+              }
+            ]
+          }
+        },
+        "credential": {
+          "id": "gdrive-cred-001",
+          "name": "Google Drive Account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "RSS Feed Read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS Feed Read": {
+      "main": [
+        [
+          {
+            "node": "Fetch Full Article",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Full Article": {
+      "main": [
+        [
+          {
+            "node": "Summarize with GPT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize with GPT": {
+      "main": [
+        [
+          {
+            "node": "Format Blog Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Blog Post": {
+      "main": [
+        [
+          {
+            "node": "Save to Google Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {},
+  "staticData": null,
+  "tags": ["content", "ai", "rss", "automation", "blogging"],
+  "versionId": "v1-ai-content-gen-20260530",
+  "triggerCount": 0
+}

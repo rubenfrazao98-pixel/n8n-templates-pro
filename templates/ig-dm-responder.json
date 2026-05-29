@@ -1,0 +1,196 @@
+{
+  "name": "Instagram DM Auto-Responder",
+  "nodes": [
+    {
+      "id": "f9e8d7c6-b5a4-3210-fedc-ba9876543011",
+      "name": "IG DM Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "parameters": {
+        "path": "ig-dm",
+        "httpMethod": "POST",
+        "responseMode": "onReceived",
+        "responseData": "allEntries",
+        "options": {}
+      },
+      "webhookId": "ig-dm-hook-002"
+    },
+    {
+      "id": "f9e8d7c6-b5a4-3210-fedc-ba9876543022",
+      "name": "Is New Conversation?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [450, 300],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-dm-001",
+              "leftValue": "={{ $json.isNewConversation }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "equal",
+                "singleValue": true
+              },
+              "rightFixedValue": "true"
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "f9e8d7c6-b5a4-3210-fedc-ba9876543033",
+      "name": "Set Greeting",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [650, 200],
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "contextPrompt",
+              "value": "={{ 'New conversation. Greet and reply to: ' + ($json.text || '') }}"
+            },
+            {
+              "name": "senderId",
+              "value": "={{ $json.from?.id || $json.senderId }}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "f9e8d7c6-b5a4-3210-fedc-ba9876543044",
+      "name": "Generate Response",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [650, 400],
+      "parameters": {
+        "resource": "chat",
+        "options": {
+          "model": "gpt-4",
+          "temperature": 0.7,
+          "maxTokens": 200
+        },
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are a brand assistant replying to Instagram DMs. Be friendly, concise. Keep responses under 200 characters."
+            },
+            {
+              "role": "user",
+              "content": "={{ 'Message: ' + ($json.text || '') + '\\nContext: ' + ($json.contextPrompt || 'existing') }}"
+            }
+          ]
+        },
+        "credential": {
+          "id": "openai-cred-002",
+          "name": "OpenAI API Account"
+        }
+      }
+    },
+    {
+      "id": "f9e8d7c6-b5a4-3210-fedc-ba9876543055",
+      "name": "Send DM via IG API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [850, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v22.0/me/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "recipient",
+              "value": "={ \"id\": \"{{ $json.from?.id || $json.senderId }}\" }"
+            },
+            {
+              "name": "messaging_type",
+              "value": "RESPONSE"
+            },
+            {
+              "name": "message",
+              "value": "={ \"text\": \"{{ ($json.choices[0].message.content || 'Thanks! Our team will reply soon.').replace(/\"/g, '\\\\\"') }}\" }"
+            }
+          ]
+        },
+        "options": {},
+        "credential": {
+          "id": "instagram-oauth-003",
+          "name": "Instagram Graph API"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "IG DM Webhook": {
+      "main": [
+        [
+          {
+            "node": "Is New Conversation?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is New Conversation?": {
+      "main": [
+        [
+          {
+            "node": "Set Greeting",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Generate Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Greeting": {
+      "main": [
+        [
+          {
+            "node": "Generate Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Response": {
+      "main": [
+        [
+          {
+            "node": "Send DM via IG API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {},
+  "staticData": null,
+  "tags": ["instagram", "dms", "social-media", "ai", "automation"],
+  "versionId": "v1-ig-dm-20260530",
+  "triggerCount": 0
+}

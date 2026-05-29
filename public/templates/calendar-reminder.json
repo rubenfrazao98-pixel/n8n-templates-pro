@@ -1,0 +1,80 @@
+{
+  "name": "Calendar Event Reminder",
+  "nodes": [
+    {
+      "id": "e1f2a3b4-c5d6-7890-efab-901234567890",
+      "name": "Check Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "parameters": {
+        "rule": {
+          "interval": 900
+        }
+      }
+    },
+    {
+      "id": "f2a3b4c5-d6e7-8901-fabc-012345678901",
+      "name": "Fetch Next Event",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [450, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://www.googleapis.com/calendar/v3/calendars/' + $env.CALENDAR_ID + '/events' }}",
+        "authentication": "genericCredentialType",
+        "sendQuery": true,
+        "sendHeaders": true,
+        "sendBody": false,
+        "options": {},
+        "queryParameters": {
+          "parameters": [
+            { "name": "timeMin", "value": "={{ new Date().toISOString() }}" },
+            { "name": "timeMax", "value": "={{ new Date(Date.now() + 3600000).toISOString() }}" },
+            { "name": "singleEvents", "value": "true" },
+            { "name": "orderBy", "value": "startTime" },
+            { "name": "maxResults", "value": "1" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "a3b4c5d6-e7f8-9012-abcd-123456789012",
+      "name": "Send WhatsApp Reminder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [650, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://graph.facebook.com/v22.0/' + $env.WA_PHONE_ID + '/messages' }}",
+        "authentication": "genericCredentialType",
+        "sendBody": true,
+        "sendQuery": false,
+        "sendHeaders": true,
+        "options": {},
+        "bodyParameters": {
+          "parameters": [
+            { "name": "messaging_product", "value": "whatsapp" },
+            { "name": "to", "value": "={{ $env.USER_PHONE }}" },
+            { "name": "type", "value": "text" },
+            { "name": "text", "value": "={ \"preview_url\": false, \"body\": \"{{ 'Reminder: ' + $json.items[0].summary + ' at ' + ($json.items[0].start?.dateTime || $json.items[0].start?.date) + '\\n' + ($json.items[0].description || '') }}\" }" }
+          ]
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Check Schedule": {
+      "main": [[{ "node": "Fetch Next Event", "type": "main", "index": 0 }]]
+    },
+    "Fetch Next Event": {
+      "main": [[{ "node": "Send WhatsApp Reminder", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {},
+  "settings": {},
+  "staticData": null,
+  "versionId": "e1f2a3b4-c5d6-7890-efab-901234567890",
+  "triggerCount": 0,
+  "tags": []
+}

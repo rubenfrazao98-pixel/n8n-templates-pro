@@ -1,0 +1,86 @@
+{
+  "name": "Deal Won Slack Alert",
+  "nodes": [
+    {
+      "id": "c5d6e7f8-a9b0-1234-cdef-345678901234",
+      "name": "CRM Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "deal-update",
+        "options": {}
+      },
+      "webhookId": "deal-update"
+    },
+    {
+      "id": "d6e7f8a9-b0c1-2345-defa-456789012345",
+      "name": "Check Stage",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [450, 300],
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.stage }}",
+              "operation": "equal",
+              "value2": "won"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "e7f8a9b0-c1d2-3456-efab-567890123456",
+      "name": "Format Slack Message",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [650, 200],
+      "parameters": {
+        "values": {
+          "string": [
+            { "name": "channel", "value": "#sales-deals" },
+            { "name": "text", "value": "={{ ':tada: Deal WON!\\nDeal: ' + $json.deal_name + '\\nCompany: ' + $json.company + '\\nValue: $' + $json.amount + '\\nOwner: ' + $json.owner + '\\nClose: ' + $json.close_date }}" }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "f8a9b0c1-d2e3-4567-fabc-678901234567",
+      "name": "Post to Slack",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 1,
+      "position": [850, 200],
+      "parameters": {
+        "channel": "={{ $json.channel }}",
+        "text": "={{ $json.text }}",
+        "otherOptions": {
+          "as_user": true
+        }
+      }
+    }
+  ],
+  "connections": {
+    "CRM Webhook": {
+      "main": [[{ "node": "Check Stage", "type": "main", "index": 0 }]]
+    },
+    "Check Stage": {
+      "main": [
+        [{ "node": "Format Slack Message", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Format Slack Message": {
+      "main": [[{ "node": "Post to Slack", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {},
+  "settings": {},
+  "staticData": null,
+  "versionId": "c5d6e7f8-a9b0-1234-cdef-345678901234",
+  "triggerCount": 0,
+  "tags": []
+}

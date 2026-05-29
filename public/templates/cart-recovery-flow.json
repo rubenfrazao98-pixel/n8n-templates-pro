@@ -1,0 +1,156 @@
+﻿{
+  "name": "Abandoned Cart Recovery",
+  "nodes": [
+    {
+      "id": "node-8f9a-0b1c-2d3e-4f5a",
+      "name": "Cart Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "parameters": {
+        "path": "cart-abandoned",
+        "responseMode": "lastNode",
+        "responseData": "noData",
+        "options": {},
+        "httpMethod": "POST"
+      },
+      "webhookId": "wh-cart-recovery-002"
+    },
+    {
+      "id": "node-9a0b-1c2d-3e4f-5a6b",
+      "name": "Check Cart Value",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [450, 300],
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.cartTotal }}",
+              "operation": "largerEqual",
+              "value2": 50
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "node-0b1c-2d3e-4f5a-6b7c",
+      "name": "Personalize Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [650, 200],
+      "parameters": {
+        "values": {
+          "string": [
+            { "name": "customerName", "value": "={{ $json.customer.first_name + ' ' + $json.customer.last_name }}" },
+            { "name": "customerEmail", "value": "={{ $json.customer.email }}" },
+            { "name": "cartItems", "value": "={{ $json.line_items.length }}" },
+            { "name": "cartTotal", "value": "={{ $json.cartTotal }}" },
+            { "name": "recoveryLink", "value": "=https://shop.example.com/cart/recover?token={{ $json.recoveryToken }}" }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "node-1c2d-3e4f-5a6b-7c8d",
+      "name": "Reminder Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [850, 200],
+      "parameters": {
+        "fromEmail": "shop@example.com",
+        "toEmail": "={{ $json.customerEmail }}",
+        "subject": "You left something in your cart!",
+        "text": "Hi {{ $json.customerName }},\n\nYou have {{ $json.cartItems }} item(s) worth ${{ $json.cartTotal }} waiting in your cart.\n\nComplete your purchase now:\n{{ $json.recoveryLink }}\n\nNeed help? Reply to this email.",
+        "options": {}
+      }
+    },
+    {
+      "id": "node-2d3e-4f5a-6b7c-8d9e",
+      "name": "Wait 24 Hours",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [1050, 200],
+      "parameters": {
+        "resume": "duration",
+        "amount": 24,
+        "unit": "hours"
+      }
+    },
+    {
+      "id": "node-3e4f-5a6b-7c8d-9e0f",
+      "name": "Offer Discount Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [1250, 200],
+      "parameters": {
+        "fromEmail": "shop@example.com",
+        "toEmail": "={{ $json.customerEmail }}",
+        "subject": "Here is 10% off your cart!",
+        "text": "Hi {{ $json.customerName }},\n\nWe noticed you haven't completed your order yet. Here is an exclusive 10% discount just for you!\n\nUse code: SAVE10 at checkout\n\nClaim your discount:\n{{ $json.recoveryLink }}\n\nOffer expires in 48 hours.",
+        "options": {}
+      }
+    },
+    {
+      "id": "node-4f5a-6b7c-8d9e-0f1a",
+      "name": "Wait 48 Hours",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [1450, 200],
+      "parameters": {
+        "resume": "duration",
+        "amount": 48,
+        "unit": "hours"
+      }
+    },
+    {
+      "id": "node-5a6b-7c8d-9e0f-1a2b",
+      "name": "Last Chance Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [1650, 200],
+      "parameters": {
+        "fromEmail": "shop@example.com",
+        "toEmail": "={{ $json.customerEmail }}",
+        "subject": "Last chance! Your cart is expiring",
+        "text": "Hi {{ $json.customerName }},\n\nThis is your final reminder. Your cart with {{ $json.cartItems }} item(s) will be cleared soon.\n\nGrab everything now with 15% off - use code: LAST15\n\nShop now:\n{{ $json.recoveryLink }}\n\nWe'd love to see you again!",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Cart Webhook": {
+      "main": [[{ "node": "Check Cart Value", "type": "main", "index": 0 }]]
+    },
+    "Check Cart Value": {
+      "main": [
+        [{ "node": "Personalize Data", "type": "main", "index": 0 }]
+      ]
+    },
+    "Personalize Data": {
+      "main": [[{ "node": "Reminder Email", "type": "main", "index": 0 }]]
+    },
+    "Reminder Email": {
+      "main": [[{ "node": "Wait 24 Hours", "type": "main", "index": 0 }]]
+    },
+    "Wait 24 Hours": {
+      "main": [[{ "node": "Offer Discount Email", "type": "main", "index": 0 }]]
+    },
+    "Offer Discount Email": {
+      "main": [[{ "node": "Wait 48 Hours", "type": "main", "index": 0 }]]
+    },
+    "Wait 48 Hours": {
+      "main": [[{ "node": "Last Chance Email", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "versionId": "v1-cartrecovery-5b8d-2f4a-9c1e",
+  "triggerCount": 0,
+  "tags": ["ecommerce", "marketing", "email", "recovery"]
+}
