@@ -1,0 +1,133 @@
+﻿{
+  "name": "YouTube to Blog Post",
+  "nodes": [
+    {
+      "id": "node-1a2b-3c4d-5e6f-7a8b",
+      "name": "Daily Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "days", "minutesInterval": 1440 }]
+        }
+      }
+    },
+    {
+      "id": "node-2b3c-4d5e-6f7a-8b9c",
+      "name": "Fetch YouTube Transcript",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [450, 300],
+      "parameters": {
+        "url": "https://www.googleapis.com/youtube/v3/captions",
+        "options": {},
+        "method": "GET",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "part", "value": "snippet" },
+            { "name": "channelId", "value": "={{ $json.channelId }}" },
+            { "name": "order", "value": "date" },
+            { "name": "maxResults", "value": "1" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "node-3c4d-5e6f-7a8b-9c0d",
+      "name": "Clean Transcript Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 300],
+      "parameters": {
+        "language": "javascript",
+        "code": "const transcript = $input.item.json.transcript;\nconst cleaned = transcript\n  .replace(/\\[.*?\\]/g, '')\n  .replace(/\\s+/g, ' ')\n  .trim();\nreturn [{ json: { cleanedTranscript: cleaned, title: $input.item.json.title, videoId: $input.item.json.id } }];\n",
+        "singleOutput": true
+      }
+    },
+    {
+      "id": "node-4d5e-6f7a-8b9c-0d1e",
+      "name": "GPT Rewrite as Blog",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [850, 300],
+      "parameters": {
+        "model": "gpt-4",
+        "temperature": 0.7,
+        "maxTokens": 2048,
+        "prompt": "Rewrite the following YouTube transcript as a well-structured blog post with headings, paragraphs, and a conclusion. Make it engaging and professional.\n\nTranscript:\n{{ $json.cleanedTranscript }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "node-5e6f-7a8b-9c0d-1e2f",
+      "name": "Format HTML",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1050, 300],
+      "parameters": {
+        "language": "javascript",
+        "code": "const blogContent = $input.item.json.text;\nconst title = $input.item.json.title || 'Blog Post';\nconst html = '<!DOCTYPE html><html><head><title>' + title + '</title></head><body><h1>' + title + '</h1><article>' + blogContent.replace(/\\n/g, '<br>') + '</article></body></html>';\nreturn [{ json: { htmlContent: html, title: title } }];\n",
+        "singleOutput": true
+      }
+    },
+    {
+      "id": "node-6f7a-8b9c-0d1e-2f3a",
+      "name": "Create Google Doc",
+      "type": "n8n-nodes-base.googleDocs",
+      "typeVersion": 1,
+      "position": [1250, 300],
+      "parameters": {
+        "operation": "create",
+        "title": "={{ $json.title }}",
+        "body": "={{ $json.htmlContent }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "node-7a8b-9c0d-1e2f-3a4b",
+      "name": "Email Notification",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [1450, 300],
+      "parameters": {
+        "fromEmail": "noreply@domain.com",
+        "toEmail": "admin@domain.com",
+        "subject": "New Blog Post Published: {{ $json.title }}",
+        "text": "A new blog post has been created from the latest YouTube video.\n\nTitle: {{ $json.title }}\n\nCheck your Google Docs for the full article.",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Daily Schedule": {
+      "main": [[{ "node": "Fetch YouTube Transcript", "type": "main", "index": 0 }]]
+    },
+    "Fetch YouTube Transcript": {
+      "main": [[{ "node": "Clean Transcript Data", "type": "main", "index": 0 }]]
+    },
+    "Clean Transcript Data": {
+      "main": [[{ "node": "GPT Rewrite as Blog", "type": "main", "index": 0 }]]
+    },
+    "GPT Rewrite as Blog": {
+      "main": [[{ "node": "Format HTML", "type": "main", "index": 0 }]]
+    },
+    "Format HTML": {
+      "main": [[{ "node": "Create Google Doc", "type": "main", "index": 0 }]]
+    },
+    "Create Google Doc": {
+      "main": [[{ "node": "Email Notification", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "versionId": "v1-ytblog-7f3a-9b2c-4d1e",
+  "triggerCount": 1,
+  "tags": ["content", "youtube", "blogging", "ai"]
+}

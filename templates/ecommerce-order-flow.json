@@ -1,0 +1,349 @@
+﻿{
+  "name": "E-Commerce Order Processing",
+  "nodes": [
+    {
+      "id": "e1f2a3b4-c5d6-7890-efab-345678901234",
+      "name": "Order Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "parameters": {
+        "path": "ecommerce-order-received",
+        "httpMethod": "POST",
+        "responseMode": "onReceived",
+        "responseData": "allEntries",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "webhookId": "order-webhook-004"
+    },
+    {
+      "id": "e1f2a3b4-c5d6-7890-efab-345678901235",
+      "name": "Validate Order",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [450, 300],
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "orderId",
+              "value": "={{ $json.data.orderId || $json.orderId }}"
+            },
+            {
+              "name": "customerEmail",
+              "value": "={{ $json.data.customer.email || $json.customerEmail }}"
+            },
+            {
+              "name": "customerName",
+              "value": "={{ $json.data.customer.name || $json.customerName }}"
+            },
+            {
+              "name": "totalAmount",
+              "value": "={{ $json.data.total || $json.totalAmount }}"
+            },
+            {
+              "name": "currency",
+              "value": "={{ $json.data.currency || $json.currency || 'USD' }}"
+            },
+            {
+              "name": "items",
+              "value": "={{ JSON.stringify($json.data.items || $json.items) }}"
+            },
+            {
+              "name": "status",
+              "value": "pending"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "e1f2a3b4-c5d6-7890-efab-345678901236",
+      "name": "IF Valid Order",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [650, 300],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-003",
+              "leftValue": "={{ $json.orderId }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "isNotEmpty",
+                "singleValue": true
+              },
+              "rightFixedValue": ""
+            },
+            {
+              "id": "cond-004",
+              "leftValue": "={{ $json.customerEmail }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "contains",
+                "singleValue": true
+              },
+              "rightFixedValue": "@"
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "e1f2a3b4-c5d6-7890-efab-345678901237",
+      "name": "Send Order Confirmation",
+      "type": "n8n-nodes-base.smtp",
+      "typeVersion": 1,
+      "position": [850, 200],
+      "parameters": {
+        "fromEmail": "orders@store.com",
+        "fromName": "Store Support",
+        "toEmail": "={{ $json.customerEmail }}",
+        "subject": "={{ \"Order #\" + $json.orderId + \" Confirmed - Thank You!\" }}",
+        "text": "={{ \"Hi \" + $json.customerName + \",\n\nThank you for your order #\" + $json.orderId + \"!\n\nOrder Total: \" + $json.currency + \" \" + $json.totalAmount + \"\n\nWe'll notify you when your order ships.\n\nIf you have any questions, contact support@store.com\n\nThanks for shopping with us!\nThe Store Team\" }}",
+        "html": "={{ \"<div style='font-family: Arial; max-width: 600px;'><h2>Order Confirmed!</h2><p>Hi \" + $json.customerName + \",</p><p>Thank you for your order <strong>#\" + $json.orderId + \"</strong>!</p><table style='width:100%;border-collapse:collapse;'><tr><td style='padding:8px;'><strong>Total:</strong></td><td style='padding:8px;'>\" + $json.currency + \" \" + $json.totalAmount + \"</td></tr></table><p>We'll notify you when your order ships.</p><p>Questions? <a href='mailto:support@store.com'>Contact us</a></p></div>\" }}",
+        "options": {},
+        "credential": {
+          "id": "smtp-cred-002",
+          "name": "SMTP Email"
+        }
+      }
+    },
+    {
+      "id": "e1f2a3b4-c5d6-7890-efab-345678901238",
+      "name": "Notify Slack",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 1,
+      "position": [850, 360],
+      "parameters": {
+        "resource": "message",
+        "operation": "post",
+        "channel": "C0123456789",
+        "text": "={{ \"*New Order Received!*\nOrder: #\" + $json.orderId + \"\nCustomer: \" + $json.customerName + \"\nTotal: \" + $json.currency + \" \" + $json.totalAmount + \"\nStatus: Pending Fulfillment\" }}",
+        "attachments": {
+          "values": [
+            {
+              "color": "#36a64f",
+              "title": "View Order in Admin",
+              "title_link": "={{ \"https://admin.store.com/orders/\" + $json.orderId }}",
+              "fields": [
+                {
+                  "title": "Items Count",
+                  "value": "={{ JSON.parse($json.items).length + ' items' }}"
+                }
+              ]
+            }
+          ]
+        },
+        "credential": {
+          "id": "slack-cred-001",
+          "name": "Slack Webhook"
+        }
+      }
+    },
+    {
+      "id": "e1f2a3b4-c5d6-7890-efab-345678901239",
+      "name": "Create Invoice in Google Docs",
+      "type": "n8n-nodes-base.googleDocs",
+      "typeVersion": 1,
+      "position": [1050, 280],
+      "parameters": {
+        "resource": "document",
+        "operation": "create",
+        "title": "={{ \"Invoice_\" + $json.orderId + \"_\" + $json.customerName.replace(/\\s/g, '_') }}",
+        "body": "={{ \"INVOICE #\" + $json.orderId + \"\\n\\nDate: \" + new Date().toLocaleDateString() + \"\\nCustomer: \" + $json.customerName + \"\\nEmail: \" + $json.customerEmail + \"\\n\\nOrder Total: \" + $json.currency + \" \" + $json.totalAmount + \"\\n\\nItems: \" + $json.items + \"\\n\\nStatus: Paid\\n\\nThank you for your business!\" }}",
+        "options": {},
+        "credential": {
+          "id": "gdocs-cred-001",
+          "name": "Google Docs API"
+        }
+      }
+    },
+    {
+      "id": "e1f2a3b4-c5d6-7890-efab-345678901240",
+      "name": "Update Inventory",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [1050, 420],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.store.com/v1/inventory/deduct",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "apiKey",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "orderId",
+              "value": "={{ $json.orderId }}"
+            },
+            {
+              "name": "items",
+              "value": "={{ $json.items }}"
+            },
+            {
+              "name": "source",
+              "value": "n8n-automation"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000,
+          "retry": {
+            "maxRetries": 3,
+            "retryDelay": 1000
+          }
+        },
+        "credential": {
+          "id": "inventory-api-cred-001",
+          "name": "Inventory API Key"
+        }
+      }
+    },
+    {
+      "id": "e1f2a3b4-c5d6-7890-efab-345678901241",
+      "name": "Log to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 1,
+      "position": [1250, 350],
+      "parameters": {
+        "operation": "append",
+        "documentId": "3CdEfGhIjKlMnOpQrStUvWxYzAb",
+        "sheetName": "Orders",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "orderId": "={{ $json.orderId }}",
+            "customerName": "={{ $json.customerName }}",
+            "customerEmail": "={{ $json.customerEmail }}",
+            "total": "={{ $json.totalAmount }}",
+            "currency": "={{ $json.currency }}",
+            "items": "={{ $json.items }}",
+            "timestamp": "={{ $now.toISOString() }}",
+            "confirmationSent": "true",
+            "slackNotified": "true",
+            "invoiceCreated": "true",
+            "inventoryUpdated": "true"
+          }
+        },
+        "options": {},
+        "credential": {
+          "id": "gsheets-cred-004",
+          "name": "Google Sheets Account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Order Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Order",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Order": {
+      "main": [
+        [
+          {
+            "node": "IF Valid Order",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Valid Order": {
+      "main": [
+        [
+          {
+            "node": "Send Order Confirmation",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Notify Slack",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Create Invoice in Google Docs",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update Inventory",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Send Order Confirmation": {
+      "main": [
+        [
+          {
+            "node": "Log to Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Slack": {
+      "main": [
+        [
+          {
+            "node": "Log to Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Invoice in Google Docs": {
+      "main": [
+        [
+          {
+            "node": "Log to Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Inventory": {
+      "main": [
+        [
+          {
+            "node": "Log to Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {},
+  "staticData": null,
+  "tags": ["ecommerce", "orders", "inventory", "notifications", "automation"],
+  "versionId": "v1-ecom-order-20260530",
+  "triggerCount": 0
+}

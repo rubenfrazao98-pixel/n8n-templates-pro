@@ -1,0 +1,96 @@
+﻿{
+  "name": "Instagram Comment to Google Sheets",
+  "nodes": [
+    {
+      "id": "node-8b9c-0d1e-2f3a-4b5c",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "parameters": {
+        "path": "ig-comments",
+        "responseMode": "lastNode",
+        "responseData": "allEntries",
+        "options": {},
+        "httpMethod": "POST"
+      },
+      "webhookId": "wh-ig-comments-001"
+    },
+    {
+      "id": "node-9c0d-1e2f-3a4b-5c6d",
+      "name": "Get Comment Details",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [450, 300],
+      "parameters": {
+        "url": "https://graph.facebook.com/v18.0/{{ $json.entry[0].changes[0].value.comment_id }}",
+        "options": {},
+        "method": "GET",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "fields", "value": "from,name,message,created_time,permalink" },
+            { "name": "access_token", "value": "={{ $credentials.accessToken }}" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "node-0d1e-2f3a-4b5c-6d7e",
+      "name": "Extract Comment Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 300],
+      "parameters": {
+        "language": "javascript",
+        "code": "const comment = $input.item.json;\nconst timestamp = new Date().toISOString();\nreturn [{\n  json: {\n    commentId: comment.id,\n    username: comment.from ? comment.from.username : 'unknown',\n    message: comment.message,\n    mediaId: comment.media ? comment.media.id : 'N/A',\n    timestamp: comment.created_time,\n    capturedAt: timestamp\n  }\n}];\n",
+        "singleOutput": true
+      }
+    },
+    {
+      "id": "node-1e2f-3a4b-5c6d-7e8f",
+      "name": "Log to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [850, 300],
+      "parameters": {
+        "operation": "append",
+        "documentId": "{{ $credentials.googleSheetId }}",
+        "sheetName": "Comments",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": [
+            { "name": "commentId", "column": "A" },
+            { "name": "username", "column": "B" },
+            { "name": "message", "column": "C" },
+            { "name": "mediaId", "column": "D" },
+            { "name": "timestamp", "column": "E" },
+            { "name": "capturedAt", "column": "F" }
+          ]
+        },
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Get Comment Details", "type": "main", "index": 0 }]]
+    },
+    "Get Comment Details": {
+      "main": [[{ "node": "Extract Comment Data", "type": "main", "index": 0 }]]
+    },
+    "Extract Comment Data": {
+      "main": [[{ "node": "Log to Google Sheets", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "versionId": "v1-igsheet-8a2f-4c7e-9b1d",
+  "triggerCount": 0,
+  "tags": ["instagram", "social-media", "monitoring", "sheets"]
+}

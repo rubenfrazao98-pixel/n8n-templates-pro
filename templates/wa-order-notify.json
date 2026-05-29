@@ -1,0 +1,88 @@
+{
+  "name": "WhatsApp Order Notification",
+  "nodes": [
+    {
+      "id": "e1f2a3b4-c5d6-7890-efab-901234567890",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "order-notify",
+        "options": {}
+      },
+      "webhookId": "order-notify"
+    },
+    {
+      "id": "f2a3b4c5-d6e7-8901-fabc-012345678901",
+      "name": "Format WhatsApp Message",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [450, 300],
+      "parameters": {
+        "values": {
+          "string": [
+            { "name": "phone", "value": "={{ $env.ADMIN_PHONE }}" },
+            { "name": "message", "value": "={{ 'New order #' + $json.order_id + '\\nCustomer: ' + $json.customer_name + '\\nItem: ' + $json.product + '\\nTotal: $' + $json.total + '\\nhttps://admin.shop.com/orders/' + $json.order_id }}" }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "a3b4c5d6-e7f8-9012-abcd-123456789012",
+      "name": "Send WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [650, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://graph.facebook.com/v22.0/' + $env.WA_PHONE_ID + '/messages' }}",
+        "authentication": "genericCredentialType",
+        "sendBody": true,
+        "sendHeaders": true,
+        "sendQuery": false,
+        "options": {},
+        "bodyParameters": {
+          "parameters": [
+            { "name": "messaging_product", "value": "whatsapp" },
+            { "name": "to", "value": "={{ $json.phone }}" },
+            { "name": "type", "value": "text" },
+            { "name": "text", "value": "={ \"preview_url\": false, \"body\": \"{{ $json.message }}\" }" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "b4c5d6e7-f8a9-0123-bcde-234567890123",
+      "name": "Log to Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 1,
+      "position": [850, 300],
+      "parameters": {
+        "operation": "append",
+        "documentId": "={{ $env.SHEET_ID }}",
+        "sheetName": "Orders",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Format WhatsApp Message", "type": "main", "index": 0 }]]
+    },
+    "Format WhatsApp Message": {
+      "main": [[{ "node": "Send WhatsApp", "type": "main", "index": 0 }]]
+    },
+    "Send WhatsApp": {
+      "main": [[{ "node": "Log to Sheets", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {},
+  "settings": {},
+  "staticData": null,
+  "versionId": "e1f2a3b4-c5d6-7890-efab-901234567890",
+  "triggerCount": 0,
+  "tags": []
+}

@@ -1,0 +1,222 @@
+﻿{
+  "name": "Lead Email Sequence Automation",
+  "nodes": [
+    {
+      "id": "d1e2f3a4-b5c6-7890-defa-234567890123",
+      "name": "Landing Page Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "parameters": {
+        "path": "lead-capture-form",
+        "httpMethod": "POST",
+        "responseMode": "onReceived",
+        "responseData": "allEntries",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "webhookId": "lead-form-hook-003"
+    },
+    {
+      "id": "d1e2f3a4-b5c6-7890-defa-234567890124",
+      "name": "Set Lead Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [450, 300],
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "email",
+              "value": "={{ $json.data.email || $json.email }}"
+            },
+            {
+              "name": "firstName",
+              "value": "={{ $json.data.firstName || $json.firstName }}"
+            },
+            {
+              "name": "lastName",
+              "value": "={{ $json.data.lastName || $json.lastName }}"
+            },
+            {
+              "name": "company",
+              "value": "={{ $json.data.company || $json.company || '' }}"
+            },
+            {
+              "name": "phone",
+              "value": "={{ $json.data.phone || $json.phone || '' }}"
+            },
+            {
+              "name": "campaignSource",
+              "value": "={{ $json.data.source || $json.source || 'landing-page' }}"
+            },
+            {
+              "name": "signupDate",
+              "value": "={{ $now.toISOString() }}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "d1e2f3a4-b5c6-7890-defa-234567890125",
+      "name": "Add to Mailchimp",
+      "type": "n8n-nodes-base.mailchimp",
+      "typeVersion": 1,
+      "position": [650, 300],
+      "parameters": {
+        "resource": "subscriberList",
+        "operation": "create",
+        "listId": "a1b2c3d4e5",
+        "jsonParameters": false,
+        "options": {
+          "skipMergeValidation": true,
+          "status": "subscribed"
+        },
+        "email": "={{ $json.email }}",
+        "mergeFields": {
+            "FNAME": "={{ $json.firstName }}",
+            "LNAME": "={{ $json.lastName }}",
+            "MMERGE3": "={{ $json.company }}",
+            "MMERGE4": "={{ $json.campaignSource }}"
+        },
+        "credential": {
+          "id": "mailchimp-cred-001",
+          "name": "Mailchimp API"
+        }
+      }
+    },
+    {
+      "id": "d1e2f3a4-b5c6-7890-defa-234567890126",
+      "name": "Send Welcome Email",
+      "type": "n8n-nodes-base.smtp",
+      "typeVersion": 1,
+      "position": [850, 300],
+      "parameters": {
+        "fromEmail": "welcome@company.com",
+        "fromName": "Company Team",
+        "toEmail": "={{ $json.email }}",
+        "subject": "={{ \"Welcome, \" + $json.firstName + \"! Here's your next step\" }}",
+        "text": "={{ \"Hi \" + $json.firstName + \",\n\nThanks for signing up! We're excited to have you on board.\n\nHere's what you can expect from us:\n- Weekly tips and insights\n- Exclusive offers\n- Product updates\n\nIf you have any questions, just reply to this email.\n\nBest,\nThe Company Team\" }}",
+        "html": "={{ \"<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'><h2 style='color: #333;'>Welcome, \" + $json.firstName + \"!</h2><p>Thanks for signing up! We're excited to have you on board.</p><p>Here's what you can expect from us:</p><ul><li>Weekly tips and insights</li><li>Exclusive offers</li><li>Product updates</li></ul><p>If you have any questions, just reply to this email.</p><p>Best,<br>The Company Team</p></div>\" }}",
+        "options": {
+          "priority": "high"
+        },
+        "credential": {
+          "id": "smtp-cred-001",
+          "name": "SMTP Email"
+        }
+      }
+    },
+    {
+      "id": "d1e2f3a4-b5c6-7890-defa-234567890127",
+      "name": "Create Todoist Task",
+      "type": "n8n-nodes-base.todoist",
+      "typeVersion": 1,
+      "position": [1050, 300],
+      "parameters": {
+        "resource": "task",
+        "operation": "create",
+        "projectId": "1234567890",
+        "content": "={{ \"Follow up with \" + $json.firstName + \" \" + $json.lastName + \" from \" + ($json.company || 'Unknown') }}",
+        "description": "={{ \"Lead Details:\\nName: \" + $json.firstName + \" \" + $json.lastName + \"\\nEmail: \" + $json.email + \"\\nPhone: \" + $json.phone + \"\\nSource: \" + $json.campaignSource + \"\\nSigned Up: \" + $json.signupDate }}",
+        "dueDate": "={{ new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] }}",
+        "priority": 3,
+        "labels": ["lead", "follow-up", "sales"],
+        "credential": {
+          "id": "todoist-cred-001",
+          "name": "Todoist API"
+        }
+      }
+    },
+    {
+      "id": "d1e2f3a4-b5c6-7890-defa-234567890128",
+      "name": "Log to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 1,
+      "position": [1050, 480],
+      "parameters": {
+        "operation": "append",
+        "documentId": "2BcDeFgHiJkLmNoPqRsTuVwXyZa",
+        "sheetName": "Leads",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "email": "={{ $json.email }}",
+            "firstName": "={{ $json.firstName }}",
+            "lastName": "={{ $json.lastName }}",
+            "company": "={{ $json.company }}",
+            "phone": "={{ $json.phone }}",
+            "source": "={{ $json.campaignSource }}",
+            "signupDate": "={{ $json.signupDate }}",
+            "status": "email_sent"
+          }
+        },
+        "options": {},
+        "credential": {
+          "id": "gsheets-cred-003",
+          "name": "Google Sheets Account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Landing Page Webhook": {
+      "main": [
+        [
+          {
+            "node": "Set Lead Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Lead Data": {
+      "main": [
+        [
+          {
+            "node": "Add to Mailchimp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add to Mailchimp": {
+      "main": [
+        [
+          {
+            "node": "Send Welcome Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Welcome Email": {
+      "main": [
+        [
+          {
+            "node": "Create Todoist Task",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log to Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {},
+  "staticData": null,
+  "tags": ["email", "crm", "leads", "mailchimp", "sales"],
+  "versionId": "v1-lead-email-seq-20260530",
+  "triggerCount": 0
+}

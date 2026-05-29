@@ -1,0 +1,90 @@
+{
+  "name": "Automated Review Request",
+  "nodes": [
+    {
+      "id": "f0a1b2c3-d4e5-6789-fabc-890123456789",
+      "name": "Daily Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "parameters": {
+        "rule": {
+          "interval": 86400
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-e5f6-7890-abcd-901234567890",
+      "name": "Read Orders",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 1,
+      "position": [450, 300],
+      "parameters": {
+        "operation": "read",
+        "documentId": "={{ $env.ORDERS_SHEET_ID }}",
+        "sheetName": "Orders",
+        "options": {}
+      }
+    },
+    {
+      "id": "b2c3d4e5-f6a7-8901-bcde-012345678901",
+      "name": "Needs Review?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [650, 300],
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.review_submitted }}",
+              "operation": "equal",
+              "value2": "no"
+            }
+          ],
+          "number": [
+            {
+              "value1": "={{ $json.days_since_delivery }}",
+              "operation": "largerEqual",
+              "value2": 3
+            }
+          ]
+        },
+        "combinator": "and"
+      }
+    },
+    {
+      "id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+      "name": "Send Review Request",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [850, 400],
+      "parameters": {
+        "fromEmail": "reviews@company.com",
+        "toEmail": "={{ $json.customer_email }}",
+        "subject": "={{ 'How was your ' + $json.product_name + '? Leave a review!' }}",
+        "text": "={{ 'Hi ' + $json.customer_name + ',\\n\\nThanks for ordering ' + $json.product_name + '! We\\'d love your feedback.\\n\\nReview here: https://company.com/review/' + $json.order_id + '\\n\\nThanks!\\nThe Team' }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Daily Schedule": {
+      "main": [[{ "node": "Read Orders", "type": "main", "index": 0 }]]
+    },
+    "Read Orders": {
+      "main": [[{ "node": "Needs Review?", "type": "main", "index": 0 }]]
+    },
+    "Needs Review?": {
+      "main": [
+        [],
+        [{ "node": "Send Review Request", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {},
+  "staticData": null,
+  "versionId": "f0a1b2c3-d4e5-6789-fabc-890123456789",
+  "triggerCount": 0,
+  "tags": []
+}

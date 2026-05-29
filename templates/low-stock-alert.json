@@ -1,0 +1,163 @@
+{
+  "name": "Low Stock Alert",
+  "nodes": [
+    {
+      "id": "f1c2d3e4-a5b6-7890-cdef-123456789011",
+      "name": "Check Inventory Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "f1c2d3e4-a5b6-7890-cdef-123456789022",
+      "name": "Get Inventory",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [450, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.INVENTORY_API_URL }}/stock",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "apiKey",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "status",
+              "value": "active"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        },
+        "credential": {
+          "id": "inventory-api-cred-002",
+          "name": "Inventory API Key"
+        }
+      }
+    },
+    {
+      "id": "f1c2d3e4-a5b6-7890-cdef-123456789033",
+      "name": "Check Stock Levels",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [650, 300],
+      "parameters": {
+        "jsCode": "const threshold = 10;\nconst items = $input.all();\nconst lowStock = [];\nfor (const item of items) {\n  const p = item.json;\n  const stock = parseInt(p.stock) || 0;\n  if (stock < threshold) {\n    lowStock.push({ id: p.id, name: p.name, sku: p.sku, stock: stock, threshold: threshold });\n  }\n}\nreturn lowStock.length ? [{ json: { alert: true, items: lowStock, count: lowStock.length } }] : [{ json: { alert: false } }];"
+      }
+    },
+    {
+      "id": "f1c2d3e4-a5b6-7890-cdef-123456789044",
+      "name": "Below Threshold?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [850, 300],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-low-001",
+              "leftValue": "={{ $json.alert }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "equal",
+                "singleValue": true
+              },
+              "rightFixedValue": "true"
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "f1c2d3e4-a5b6-7890-cdef-123456789055",
+      "name": "Send Alert",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [1050, 200],
+      "parameters": {
+        "fromEmail": "inventory@store.com",
+        "fromName": "Inventory Monitor",
+        "toEmail": "={{ $env.ALERT_EMAIL || 'warehouse@store.com' }}",
+        "subject": "={{ 'Low Stock Alert - ' + $json.count + ' product(s) below threshold' }}",
+        "text": "={{ 'Low Stock Alert\\n\\n' + JSON.stringify($json.items, null, 2) }}",
+        "html": "={{ '<h2>Low Stock Alert</h2><p>Products below threshold (' + $json.count + '):</p><ul>' + $json.items.map(function(i) { return '<li>' + i.name + ' (SKU: ' + i.sku + ') - Stock: ' + i.stock + '</li>'; }).join('') + '</ul>' }}",
+        "options": {},
+        "credential": {
+          "id": "smtp-cred-003",
+          "name": "SMTP Email"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Check Inventory Schedule": {
+      "main": [
+        [
+          {
+            "node": "Get Inventory",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Inventory": {
+      "main": [
+        [
+          {
+            "node": "Check Stock Levels",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Stock Levels": {
+      "main": [
+        [
+          {
+            "node": "Below Threshold?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Below Threshold?": {
+      "main": [
+        [
+          {
+            "node": "Send Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {},
+  "staticData": null,
+  "tags": ["inventory", "alerts", "stock", "ecommerce", "supply-chain"],
+  "versionId": "v1-low-stock-20260530",
+  "triggerCount": 0
+}
