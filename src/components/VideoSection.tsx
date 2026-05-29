@@ -78,7 +78,7 @@ export default function VideoSection() {
         >
           <video
             ref={videoRef}
-            src="/video/promo.mp4"
+            src="video/promo.mp4"
             playsInline
             controls={playing}
             style={{
